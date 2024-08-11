@@ -1,5 +1,5 @@
 const pool = require('../db/db')
-const bcrypt = require('bcrypt')
+const bcrypt = require('bcryptjs')
 const fs = require('fs')
 const path = require('path')
 const saltRounds = 10

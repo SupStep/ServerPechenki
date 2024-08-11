@@ -1,6 +1,6 @@
 const { Pool } = require('pg')
 
-const client = new Pool({
+const pool = new Pool({
 	user: 'gen_user',
 	host: '147.45.236.124',
 	database: 'default_db',

@@ -8,4 +8,4 @@ const client = new Pool({
 	port: 5432,
 })
 
-client.connect()
+module.exports = pool

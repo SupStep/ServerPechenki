@@ -50,7 +50,6 @@ const authenticateUser = async (req, res) => {
 			return res.status(401).json({ error: 'Invalid name or password' })
 		}
 
-		// Сравниваем введенный пароль с хэшированным паролем в базе данных
 		const match = await bcrypt.compare(password, user.password)
 
 		if (match) {

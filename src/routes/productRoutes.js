@@ -16,14 +16,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage })
 
-const uploadFields = upload.fields([
-	{ name: 'photos', maxCount: 10 },
-	{ name: 'itemPhotos', maxCount: 50 },
-])
-
 router.get('/', productController.getAllProduct)
 
-router.post('/', uploadFields, productController.createNewProduct)
+router.post('/', upload.any(), productController.createNewProduct)
 
 router.delete('/:productId', productController.deleteOneProduct)
 

@@ -223,7 +223,14 @@ const createNewProduct = async (req, res) => {
 		structure,
 		items,
 	} = req.body
-	const photos = req.files ? req.files.map(file => file.filename) : []
+
+	// Получаем файлы
+	const photos = req.files['photos']
+		? req.files['photos'].map(file => file.filename)
+		: []
+	const itemPhotos = req.files['itemPhotos']
+		? req.files['itemPhotos'].map(file => file.filename)
+		: []
 
 	try {
 		let productId

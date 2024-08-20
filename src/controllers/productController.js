@@ -67,44 +67,55 @@ const getAllProduct = async (req, res) => {
 	try {
 		// Получаем все продукты и их данные
 		const productsResult = await pool.query(`
-      SELECT
-        p.id AS product_id,
-        p.name AS product_name,
-        p.description AS product_description,
-        p.composition AS product_composition,
-        p.price AS product_price,
-        pp.photo_name AS product_photo,
-        s.id AS section_id,
-        s.name AS section_name
-      FROM products p
-      LEFT JOIN "productPhotos" pp ON p.id = pp.id_product
-      LEFT JOIN "productSections" ps ON p.id = ps.id_product
-      LEFT JOIN "sections" s ON ps.id_section = s.id
-    `)
+			SELECT
+				p.id AS product_id,
+				p.name AS product_name,
+				p.description AS product_description,
+				p.composition AS product_composition,
+				p.price AS product_price,
+				pp.photo_name AS product_photo,
+				s.id AS section_id,
+				s.name AS section_name
+			FROM products p
+			LEFT JOIN "productPhotos" pp ON p.id = pp.id_product
+			LEFT JOIN "productSections" ps ON p.id = ps.id_product
+			LEFT JOIN "sections" s ON ps.id_section = s.id
+		`)
 
 		// Получаем все рецепты и их данные
 		const recipesResult = await pool.query(`
-      SELECT
-        r.id AS recipe_id,
-        r.name AS recipe_name,
-        r.description AS recipe_description,
-        r.price AS recipe_price,
-        rp.photo_name AS recipe_photo
-      FROM recipes r
-      LEFT JOIN "recipePhotos" rp ON r.id = rp.id_recipe
-    `)
+			SELECT
+				r.id AS recipe_id,
+				r.name AS recipe_name,
+				r.description AS recipe_description,
+				r.price AS recipe_price,
+				rp.photo_name AS recipe_photo
+			FROM recipes r
+			LEFT JOIN "recipePhotos" rp ON r.id = rp.id_recipe
+		`)
 
 		// Получаем все боксы и их данные
 		const boxesResult = await pool.query(`
-      SELECT
-        b.id AS box_id,
-        b.name AS box_name,
-        b.structure AS box_structure,
-        b.price AS box_price,
-        bp.photo_name AS box_photo
-      FROM boxes b
-      LEFT JOIN "boxesPhotos" bp ON b.id = bp.id_box
-    `)
+			SELECT
+				b.id AS box_id,
+				b.name AS box_name,
+				b.structure AS box_structure,
+				b.price AS box_price,
+				bp.photo_name AS box_photo
+			FROM boxes b
+			LEFT JOIN "boxesPhotos" bp ON b.id = bp.id_box
+		`)
+
+		// Получаем все элементы боксов и их фотографии
+		const boxItemsResult = await pool.query(`
+			SELECT
+				bi.id AS item_id,
+				bi.id_box AS box_id,
+				bi.description AS item_description,
+				bip.photo_name AS item_photo
+			FROM "boxItem" bi
+			LEFT JOIN "boxItemPhotos" bip ON bi.id = bip."id_boxItem"
+		`)
 
 		// Обрабатываем продукты
 		const productsBySections = {}
@@ -163,10 +174,30 @@ const getAllProduct = async (req, res) => {
 					structure: row.box_structure,
 					price: row.box_price,
 					photos: [],
+					items: [], // добавляем массив для элементов бокса
 				}
 			}
 			if (row.box_photo) {
 				boxes[row.box_id].photos.push(row.box_photo)
+			}
+		})
+
+		// Обрабатываем элементы боксов и добавляем их в соответствующие боксы
+		boxItemsResult.rows.forEach(row => {
+			const box = boxes[row.box_id]
+			if (box) {
+				const existingItem = box.items.find(item => item.id === row.item_id)
+				if (existingItem) {
+					if (row.item_photo) {
+						existingItem.photos.push(row.item_photo)
+					}
+				} else {
+					box.items.push({
+						id: row.item_id,
+						description: row.item_description,
+						photos: row.item_photo ? [row.item_photo] : [],
+					})
+				}
 			}
 		})
 
@@ -182,8 +213,16 @@ const getAllProduct = async (req, res) => {
 }
 
 const createNewProduct = async (req, res) => {
-	const { type, name, description, composition, price, section, structure } =
-		req.body
+	const {
+		type,
+		name,
+		description,
+		composition,
+		price,
+		section,
+		structure,
+		items,
+	} = req.body
 	const photos = req.files ? req.files.map(file => file.filename) : []
 
 	try {
@@ -260,6 +299,31 @@ const createNewProduct = async (req, res) => {
 				)
 				await Promise.all(photoQueries)
 			}
+
+			// Создание элементов бокса
+			if (items && items.length > 0) {
+				for (const item of items) {
+					const { description, itemPhotos } = item
+
+					// Вставка элементов бокса
+					const itemResult = await pool.query(
+						'INSERT INTO "boxItem" (id_box, description) VALUES ($1, $2) RETURNING id',
+						[productId, description]
+					)
+					const itemId = itemResult.rows[0].id
+
+					// Вставка фотографий элементов бокса
+					if (itemPhotos && itemPhotos.length > 0) {
+						const itemPhotoQueries = itemPhotos.map(photo =>
+							pool.query(
+								'INSERT INTO "boxItemPhotos" ("id_boxItem", photo_name) VALUES ($1, $2)',
+								[itemId, photo]
+							)
+						)
+						await Promise.all(itemPhotoQueries)
+					}
+				}
+			}
 		} else {
 			return res.status(400).send('Invalid product type')
 		}
@@ -278,11 +342,9 @@ const deleteOneProduct = async (req, res) => {
 	try {
 		let photoPaths = []
 
-		// Определяем тип продукта и получаем связанные фотографии
-		let photoResult, deletePhotoQuery, deleteProductQuery
-
 		if (type === 'product') {
-			photoResult = await pool.query(
+			// Удаление фото и продукта
+			const photoResult = await pool.query(
 				'SELECT photo_name FROM "productPhotos" WHERE id_product = $1',
 				[productId]
 			)
@@ -297,7 +359,8 @@ const deleteOneProduct = async (req, res) => {
 			])
 			await pool.query('DELETE FROM "products" WHERE id = $1', [productId])
 		} else if (type === 'recipe') {
-			photoResult = await pool.query(
+			// Удаление фото и рецепта
+			const photoResult = await pool.query(
 				'SELECT photo_name FROM "recipePhotos" WHERE id_recipe = $1',
 				[productId]
 			)
@@ -309,22 +372,52 @@ const deleteOneProduct = async (req, res) => {
 			])
 			await pool.query('DELETE FROM "recipes" WHERE id = $1', [productId])
 		} else if (type === 'box') {
-			photoResult = await pool.query(
+			// Удаление фото бокса
+			const boxPhotoResult = await pool.query(
 				'SELECT photo_name FROM "boxesPhotos" WHERE id_box = $1',
 				[productId]
 			)
-			photoPaths = photoResult.rows.map(row =>
+			photoPaths = boxPhotoResult.rows.map(row =>
 				path.join(__dirname, '../photos', row.photo_name)
 			)
 			await pool.query('DELETE FROM "boxesPhotos" WHERE id_box = $1', [
 				productId,
 			])
+
+			// Получаем id всех элементов бокса для удаления их фотографий
+			const itemsResult = await pool.query(
+				'SELECT id FROM "boxItem" WHERE id_box = $1',
+				[productId]
+			)
+			const itemIds = itemsResult.rows.map(row => row.id)
+
+			// Удаляем фотографии элементов бокса
+			if (itemIds.length > 0) {
+				const itemPhotosResult = await pool.query(
+					'SELECT photo_name FROM "boxItemPhotos" WHERE "id_boxItem" = ANY($1::int[])',
+					[itemIds]
+				)
+				const itemPhotoPaths = itemPhotosResult.rows.map(row =>
+					path.join(__dirname, '../photos', row.photo_name)
+				)
+				photoPaths.push(...itemPhotoPaths)
+
+				await pool.query(
+					'DELETE FROM "boxItemPhotos" WHERE "id_boxItem" = ANY($1::int[])',
+					[itemIds]
+				)
+
+				// Удаляем элементы бокса
+				await pool.query('DELETE FROM "boxItem" WHERE id_box = $1', [productId])
+			}
+
+			// Удаляем сам бокс
 			await pool.query('DELETE FROM "boxes" WHERE id = $1', [productId])
 		} else {
 			return res.status(404).send('Product not found')
 		}
 
-		// Удаляем фотографии из файловой системы
+		// Удаление фотографий из файловой системы
 		photoPaths.forEach(photoPath => {
 			fs.unlink(photoPath, err => {
 				if (err) {

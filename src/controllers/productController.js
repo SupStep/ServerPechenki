@@ -342,15 +342,19 @@ const createNewProduct = async (req, res) => {
 }
 
 const editProduct = async (req, res) => {
-	const { productId } = req.params
-	const { type, name, description, composition, price, structure, items } =
-		req.body
-	const photos = req.files
+	const { productId } = req.params;
+	const { type, name, description, composition, price, structure, items } = req.body;
+	const files = req.files || []; // Проверка на наличие req.files, если undefined - создаем пустой массив
+	
+	// Обрабатываем фотографии продукта
+	const photos = files
 		.filter(file => file.fieldname === 'photos')
-		.map(file => file.filename)
-	const itemPhotos = req.files
+		.map(file => file.filename);
+	
+	// Обрабатываем фотографии элементов бокса
+	const itemPhotos = files
 		.filter(file => file.fieldname.startsWith('items'))
-		.map(file => file.filename)
+		.map(file => file.filename);
 
 	try {
 		// Обновляем основную информацию о продукте, рецепте или боксе
@@ -358,42 +362,43 @@ const editProduct = async (req, res) => {
 			await pool.query(
 				'UPDATE "products" SET name = $1, description = $2, composition = $3, price = $4 WHERE id = $5',
 				[name, description, composition, price, productId]
-			)
-			await updatePhotos('productPhotos', 'id_product', productId, photos)
+			);
+			await updatePhotos('productPhotos', 'id_product', productId, photos);
 		} else if (type === 'recipe') {
 			await pool.query(
 				'UPDATE "recipes" SET name = $1, description = $2, price = $3 WHERE id = $4',
 				[name, description, price, productId]
-			)
-			await updatePhotos('recipePhotos', 'id_recipe', productId, photos)
+			);
+			await updatePhotos('recipePhotos', 'id_recipe', productId, photos);
 		} else if (type === 'box') {
 			await pool.query(
 				'UPDATE "boxes" SET name = $1, structure = $2, price = $3 WHERE id = $4',
 				[name, structure, price, productId]
-			)
-			await updatePhotos('boxesPhotos', 'id_box', productId, photos)
+			);
+			await updatePhotos('boxesPhotos', 'id_box', productId, photos);
 
 			// Обновляем фотографии и информацию о элементах бокса
 			if (items && items.length > 0) {
 				for (const item of items) {
-					const { id, description } = item
+					const { id, description } = item;
 					await pool.query(
 						'UPDATE "boxItem" SET description = $1 WHERE id = $2 AND id_box = $3',
 						[description, id, productId]
-					)
-					await updatePhotos('boxItemPhotos', 'id_boxItem', id, item.itemPhotos)
+					);
+					await updatePhotos('boxItemPhotos', 'id_boxItem', id, item.itemPhotos);
 				}
 			}
 		} else {
-			return res.status(400).json({ error: 'Invalid product type' })
+			return res.status(400).json({ error: 'Invalid product type' });
 		}
 
-		res.status(200).json({ message: 'Product updated successfully' })
+		res.status(200).json({ message: 'Product updated successfully' });
 	} catch (error) {
-		console.error('Error updating product:', error)
-		res.status(500).json({ error: 'Internal Server Error' })
+		console.error('Error updating product:', error);
+		res.status(500).json({ error: 'Internal Server Error' });
 	}
-}
+};
+
 
 // Утилита для обновления фотографий
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {

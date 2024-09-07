@@ -398,6 +398,7 @@ const editProduct = async (req, res) => {
 	}
 }
 
+
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 	if (!newPhotos || newPhotos.length === 0) return
 

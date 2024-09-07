@@ -376,10 +376,14 @@ const editProduct = async (req, res) => {
 			if (items && items.length > 0) {
 				for (const item of items) {
 					const { id, description, itemPhotos } = item
+
+					// Обновляем описание элемента бокса
 					await pool.query(
 						'UPDATE "boxItem" SET description = $1 WHERE id = $2 AND id_box = $3',
 						[description, id, productId]
 					)
+					
+					// Обновляем фотографии элементов бокса
 					await updatePhotos('boxItemPhotos', 'id_boxItem', id, itemPhotos || [])
 				}
 			}
@@ -394,7 +398,6 @@ const editProduct = async (req, res) => {
 	}
 }
 
-// Утилита для обновления фотографий
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 	if (!newPhotos || newPhotos.length === 0) return
 
@@ -410,7 +413,7 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 
 	// 3. Удалить старые файлы фотографий из файловой системы
 	for (const photo of oldPhotos) {
-		const photoPath = path.join(__dirname, 'uploads', photo) // Предполагаем, что фотографии хранятся в 'uploads'
+		const photoPath = path.join(__dirname, '../photos', photo) // Предполагаем, что фотографии хранятся в 'photos'
 		fs.unlink(photoPath, err => {
 			if (err) console.error(`Error deleting file ${photo}:`, err)
 		})
@@ -427,6 +430,7 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 		await Promise.all(photoQueries)
 	}
 }
+
 
 
 const deleteOneProduct = async (req, res) => {

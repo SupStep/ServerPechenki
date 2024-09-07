@@ -20,31 +20,43 @@ router.post(
 			try {
 				await Promise.all(
 					req.files.map(async file => {
-						const filename = Date.now() + path.extname(file.originalname)
-						const uploadPath = path.join(__dirname, '../photos', filename)
+						const filename = Date.now() + path.extname(file.originalname);
+						const uploadPath = path.join(__dirname, '../photos', filename);
 
 						await sharp(file.buffer)
 							.rotate()
 							.resize({ width: 600 })
 							.toFormat('jpeg') // можно конвертировать в другой формат (например, в jpeg)
 							.jpeg({ quality: 90 }) // устанавливаем качество изображения
-							.toFile(uploadPath)
+							.toFile(uploadPath);
 
-						// Обновляем имя файла в объекте
-						file.filename = filename
+						// Проверка: файл относится к элементу бокса или к основному продукту?
+						if (file.fieldname.startsWith('items')) {
+							// Файл для элемента бокса
+							const itemId = file.fieldname.split('[')[1].split(']')[0];
+							if (!req.body.items) req.body.items = {};
+							if (!req.body.items[itemId]) req.body.items[itemId] = {};
+							if (!req.body.items[itemId].photos) req.body.items[itemId].photos = [];
+
+							req.body.items[itemId].photos.push(filename);
+						} else {
+							// Файл для основного продукта
+							file.filename = filename;
+						}
 					})
-				)
-				next()
+				);
+				next();
 			} catch (error) {
-				console.error('Error processing images:', error)
-				return res.status(500).send('Error processing images')
+				console.error('Error processing images:', error);
+				return res.status(500).send('Error processing images');
 			}
 		} else {
-			next()
+			next();
 		}
 	},
 	productController.createNewProduct
-)
+);
+
 
 router.delete('/:productId', productController.deleteOneProduct)
 

@@ -342,60 +342,60 @@ const createNewProduct = async (req, res) => {
 }
 
 const editProduct = async (req, res) => {
-	const { productId } = req.params;
-	const { type, name, description, composition, price, structure, items } = req.body;
-	const photos = req.files
-		.filter(file => file.fieldname === 'photos')
-		.map(file => file.filename);
-	const itemPhotos = req.files
-		.filter(file => file.fieldname.startsWith('items'))
-		.map(file => file.filename);
+    const { productId } = req.params;
+    const { type, name, description, composition, price, structure, items } = req.body;
+    const photos = req.files
+        .filter(file => file.fieldname === 'photos')
+        .map(file => file.filename);
+    const itemPhotos = req.files
+        .filter(file => file.fieldname.startsWith('items'))
+        .map(file => file.filename);
 
-	console.log('Uploaded files:', req.files); // Добавлено для отладки
-	console.log('Photos:', photos);
-	console.log('Item Photos:', itemPhotos);
+    console.log('Uploaded files:', req.files); // Для отладки
+    console.log('Photos:', photos);
+    console.log('Item Photos:', itemPhotos);
 
-	try {
-		if (type === 'product') {
-			await pool.query(
-				'UPDATE "products" SET name = $1, description = $2, composition = $3, price = $4 WHERE id = $5',
-				[name, description, composition, price, productId]
-			);
-			await updatePhotos('productPhotos', 'id_product', productId, photos);
-		} else if (type === 'recipe') {
-			await pool.query(
-				'UPDATE "recipes" SET name = $1, description = $2, price = $3 WHERE id = $4',
-				[name, description, price, productId]
-			);
-			await updatePhotos('recipePhotos', 'id_recipe', productId, photos);
-		} else if (type === 'box') {
-			await pool.query(
-				'UPDATE "boxes" SET name = $1, structure = $2, price = $3 WHERE id = $4',
-				[name, structure, price, productId]
-			);
-			await updatePhotos('boxesPhotos', 'id_box', productId, photos);
+    try {
+        if (type === 'product') {
+            await pool.query(
+                'UPDATE "products" SET name = $1, description = $2, composition = $3, price = $4 WHERE id = $5',
+                [name, description, composition, price, productId]
+            );
+            await updatePhotos('productPhotos', 'id_product', productId, photos);
+        } else if (type === 'recipe') {
+            await pool.query(
+                'UPDATE "recipes" SET name = $1, description = $2, price = $3 WHERE id = $4',
+                [name, description, price, productId]
+            );
+            await updatePhotos('recipePhotos', 'id_recipe', productId, photos);
+        } else if (type === 'box') {
+            await pool.query(
+                'UPDATE "boxes" SET name = $1, structure = $2, price = $3 WHERE id = $4',
+                [name, structure, price, productId]
+            );
+            await updatePhotos('boxesPhotos', 'id_box', productId, photos);
 
-			if (items && items.length > 0) {
-				for (const item of items) {
-					const { id, description, itemPhotos } = item;
+            if (items && items.length > 0) {
+                for (const item of items) {
+                    const { id, description, itemPhotos } = item;
 
-					await pool.query(
-						'UPDATE "boxItem" SET description = $1 WHERE id = $2 AND id_box = $3',
-						[description, id, productId]
-					);
+                    await pool.query(
+                        'UPDATE "boxItem" SET description = $1 WHERE id = $2 AND id_box = $3',
+                        [description, id, productId]
+                    );
 
-					await updatePhotos('boxItemPhotos', 'id_boxItem', id, itemPhotos || []);
-				}
-			}
-		} else {
-			return res.status(400).json({ error: 'Invalid product type' });
-		}
+                    await updatePhotos('boxItemPhotos', 'id_boxItem', id, itemPhotos || []);
+                }
+            }
+        } else {
+            return res.status(400).json({ error: 'Invalid product type' });
+        }
 
-		res.status(200).json({ message: 'Product updated successfully' });
-	} catch (error) {
-		console.error('Error updating product:', error);
-		res.status(500).json({ error: 'Internal Server Error' });
-	}
+        res.status(200).json({ message: 'Product updated successfully' });
+    } catch (error) {
+        console.error('Error updating product:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
 };
 
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {

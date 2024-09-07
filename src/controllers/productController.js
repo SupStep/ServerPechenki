@@ -342,19 +342,14 @@ const createNewProduct = async (req, res) => {
 }
 
 const editProduct = async (req, res) => {
-	const { productId } = req.params;
-	const { type, name, description, composition, price, structure, items } = req.body;
-	const files = req.files || []; // Проверка на наличие req.files, если undefined - создаем пустой массив
-	
-	// Обрабатываем фотографии продукта
-	const photos = files
+	const { productId } = req.params
+	const { type, name, description, composition, price, structure, items } = req.body
+	const photos = req.files
 		.filter(file => file.fieldname === 'photos')
-		.map(file => file.filename);
-	
-	// Обрабатываем фотографии элементов бокса
-	const itemPhotos = files
+		.map(file => file.filename)
+	const itemPhotos = req.files
 		.filter(file => file.fieldname.startsWith('items'))
-		.map(file => file.filename);
+		.map(file => file.filename)
 
 	try {
 		// Обновляем основную информацию о продукте, рецепте или боксе
@@ -362,89 +357,77 @@ const editProduct = async (req, res) => {
 			await pool.query(
 				'UPDATE "products" SET name = $1, description = $2, composition = $3, price = $4 WHERE id = $5',
 				[name, description, composition, price, productId]
-			);
-			await updatePhotos('productPhotos', 'id_product', productId, photos);
+			)
+			await updatePhotos('productPhotos', 'id_product', productId, photos)
 		} else if (type === 'recipe') {
 			await pool.query(
 				'UPDATE "recipes" SET name = $1, description = $2, price = $3 WHERE id = $4',
 				[name, description, price, productId]
-			);
-			await updatePhotos('recipePhotos', 'id_recipe', productId, photos);
+			)
+			await updatePhotos('recipePhotos', 'id_recipe', productId, photos)
 		} else if (type === 'box') {
 			await pool.query(
 				'UPDATE "boxes" SET name = $1, structure = $2, price = $3 WHERE id = $4',
 				[name, structure, price, productId]
-			);
-			await updatePhotos('boxesPhotos', 'id_box', productId, photos);
+			)
+			await updatePhotos('boxesPhotos', 'id_box', productId, photos)
 
 			// Обновляем фотографии и информацию о элементах бокса
 			if (items && items.length > 0) {
 				for (const item of items) {
-					const { id, description } = item;
+					const { id, description, itemPhotos } = item
 					await pool.query(
 						'UPDATE "boxItem" SET description = $1 WHERE id = $2 AND id_box = $3',
 						[description, id, productId]
-					);
-					await updatePhotos('boxItemPhotos', 'id_boxItem', id, item.itemPhotos);
+					)
+					await updatePhotos('boxItemPhotos', 'id_boxItem', id, itemPhotos || [])
 				}
 			}
 		} else {
-			return res.status(400).json({ error: 'Invalid product type' });
+			return res.status(400).json({ error: 'Invalid product type' })
 		}
 
-		res.status(200).json({ message: 'Product updated successfully' });
+		res.status(200).json({ message: 'Product updated successfully' })
 	} catch (error) {
-		console.error('Error updating product:', error);
-		res.status(500).json({ error: 'Internal Server Error' });
+		console.error('Error updating product:', error)
+		res.status(500).json({ error: 'Internal Server Error' })
 	}
-};
-
+}
 
 // Утилита для обновления фотографий
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
+	if (!newPhotos || newPhotos.length === 0) return
+
 	// 1. Получить старые фотографии из базы данных
 	const oldPhotosResult = await pool.query(
 		`SELECT photo_name FROM "${photoTable}" WHERE ${foreignKey} = $1`,
 		[id]
-	);
-	const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name);
+	)
+	const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name)
 
-	// 2. Если новые фотографии пришли в запросе
-	if (newPhotos && newPhotos.length > 0) {
-		// 2.1 Удаляем старые записи из базы данных и файлы
-		for (const oldPhoto of oldPhotos) {
-			// Удаляем запись из базы данных
-			await pool.query(`DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1 AND photo_name = $2`, [id, oldPhoto]);
+	// 2. Удалить старые записи из базы данных
+	await pool.query(`DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1`, [id])
 
-			// Проверяем, существует ли файл, и если да, удаляем его
-			const oldPhotoPath = path.join(__dirname, 'uploads', oldPhoto);
-			fs.access(oldPhotoPath, fs.constants.F_OK, (err) => {
-				if (!err) {
-					fs.unlink(oldPhotoPath, (unlinkErr) => {
-						if (unlinkErr) {
-							console.error(`Error deleting file ${oldPhoto}:`, unlinkErr);
-						} else {
-							console.log(`File ${oldPhoto} successfully deleted`);
-						}
-					});
-				} else {
-					console.error(`File ${oldPhoto} does not exist in the file system.`);
-				}
-			});
-		}
-
-		// 2.2 Добавляем новые фотографии в базу данных
-		for (const newPhoto of newPhotos) {
-			await pool.query(
-				`INSERT INTO "${photoTable}" (${foreignKey}, photo_name) VALUES ($1, $2)`,
-				[id, newPhoto]
-			);
-		}
-	} else {
-		// 3. Если новые фотографии не пришли, ничего не делаем с существующими
-		console.log("No new photos provided. Skipping photo update.");
+	// 3. Удалить старые файлы фотографий из файловой системы
+	for (const photo of oldPhotos) {
+		const photoPath = path.join(__dirname, 'uploads', photo) // Предполагаем, что фотографии хранятся в 'uploads'
+		fs.unlink(photoPath, err => {
+			if (err) console.error(`Error deleting file ${photo}:`, err)
+		})
 	}
-};
+
+	// 4. Добавить новые фотографии в базу данных
+	if (newPhotos.length > 0) {
+		const photoQueries = newPhotos.map(photo =>
+			pool.query(
+				`INSERT INTO "${photoTable}" (${foreignKey}, photo_name) VALUES ($1, $2)`,
+				[id, photo]
+			)
+		)
+		await Promise.all(photoQueries)
+	}
+}
+
 
 const deleteOneProduct = async (req, res) => {
 	const { productId } = req.params

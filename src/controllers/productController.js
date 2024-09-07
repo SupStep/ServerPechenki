@@ -352,6 +352,7 @@ const editProduct = async (req, res) => {
 		.map(file => file.filename);
 
 	try {
+		console.log('Uploaded files:', req.files);
 		if (type === 'product') {
 			await pool.query(
 				'UPDATE "products" SET name = $1, description = $2, composition = $3, price = $4 WHERE id = $5',
@@ -397,37 +398,39 @@ const editProduct = async (req, res) => {
 
 
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
-	if (!newPhotos || newPhotos.length === 0) return
+	console.log('Updating photos:', { photoTable, foreignKey, id, newPhotos });
+	if (!newPhotos || newPhotos.length === 0) return;
 
-	// 1. Получить старые фотографии из базы данных
 	const oldPhotosResult = await pool.query(
 		`SELECT photo_name FROM "${photoTable}" WHERE ${foreignKey} = $1`,
 		[id]
-	)
-	const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name)
+	);
+	const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name);
 
-	// 2. Удалить старые записи из базы данных
-	await pool.query(`DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1`, [id])
+	console.log('Old photos:', oldPhotos);
 
-	// 3. Удалить старые файлы фотографий из файловой системы
+	await pool.query(`DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1`, [id]);
+
 	for (const photo of oldPhotos) {
-		const photoPath = path.join(__dirname, '../photos', photo) // Предполагаем, что фотографии хранятся в 'photos'
+		const photoPath = path.join(__dirname, '../photos', photo);
 		fs.unlink(photoPath, err => {
-			if (err) console.error(`Error deleting file ${photo}:`, err)
-		})
+			if (err) console.error(`Error deleting file ${photo}:`, err);
+		});
 	}
 
-	// 4. Добавить новые фотографии в базу данных
 	if (newPhotos.length > 0) {
 		const photoQueries = newPhotos.map(photo =>
 			pool.query(
 				`INSERT INTO "${photoTable}" (${foreignKey}, photo_name) VALUES ($1, $2)`,
 				[id, photo]
 			)
-		)
-		await Promise.all(photoQueries)
+		);
+		await Promise.all(photoQueries);
 	}
-}
+
+	console.log('Photos updated successfully');
+};
+
 
 
 

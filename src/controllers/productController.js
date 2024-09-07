@@ -303,7 +303,7 @@ const createNewProduct = async (req, res) => {
 					if (itemPhotosArray && itemPhotosArray.length > 0) {
 						const itemPhotoQueries = itemPhotosArray.map(photo =>
 							pool.query(
-								'INSERT INTO "boxItemPhotos" (id_boxItem, photo_name) VALUES ($1, $2)',
+								'INSERT INTO "boxItemPhotos" ("id_boxItem", "photo_name") VALUES ($1, $2)',
 								[newItemId, photo]
 							)
 						);

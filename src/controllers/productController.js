@@ -321,13 +321,11 @@ const createNewProduct = async (req, res) => {
 		res.status(500).send('Server error');
 	}
 };
-
-
 const editProduct = async (req, res) => {
     const { productId } = req.params;
     const { type, name, description, composition, price, structure, items } = req.body;
 
-    // Фотографии бокса
+    // Фотографии самого продукта/бокса
     const photos = req.files
         .filter(file => file.fieldname === 'photos')
         .map(file => file.filename);
@@ -344,30 +342,34 @@ const editProduct = async (req, res) => {
 
     try {
         if (type === 'product') {
+            // Обновляем продукт
             await pool.query(
                 'UPDATE "products" SET name = $1, description = $2, composition = $3, price = $4 WHERE id = $5',
                 [name, description, composition, price, productId]
             );
+            // Обновляем фотографии продукта
             await updatePhotos('productPhotos', 'id_product', productId, photos);
         } else if (type === 'recipe') {
+            // Обновляем рецепт
             await pool.query(
                 'UPDATE "recipes" SET name = $1, description = $2, price = $3 WHERE id = $4',
                 [name, description, price, productId]
             );
+            // Обновляем фотографии рецепта
             await updatePhotos('recipePhotos', 'id_recipe', productId, photos);
         } else if (type === 'box') {
-            // Обновление информации о боксе
+            // Обновляем бокс
             await pool.query(
                 'UPDATE "boxes" SET name = $1, structure = $2, price = $3 WHERE id = $4',
                 [name, structure, price, productId]
             );
 
-            // Обновление фотографий бокса
+            // Обновляем фотографии бокса
             if (photos.length > 0) {
                 await updatePhotos('boxesPhotos', 'id_box', productId, photos);
             }
 
-            // Обновление элементов бокса, если они переданы
+            // Обновляем элементы бокса, если они переданы
             if (items && items.length > 0) {
                 for (const item of items) {
                     const { id, description } = item;
@@ -378,7 +380,7 @@ const editProduct = async (req, res) => {
                         [description, id, productId]
                     );
 
-                    // Обновляем фотографии элемента бокса, если новые фото переданы
+                    // Обновляем фотографии элемента бокса
                     if (itemPhotos[id] && itemPhotos[id].length > 0) {
                         await updatePhotos('boxItemPhotos', 'id_boxItem', id, itemPhotos[id]);
                     }
@@ -395,6 +397,7 @@ const editProduct = async (req, res) => {
     }
 };
 
+// Вспомогательная функция для обновления фотографий
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
     console.log('Updating photos:', { photoTable, foreignKey, id, newPhotos });
 
@@ -450,7 +453,6 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 
     console.log('Photos updated successfully');
 };
-
 const deleteOneProduct = async (req, res) => {
 	const { productId } = req.params
 	const { type } = req.body

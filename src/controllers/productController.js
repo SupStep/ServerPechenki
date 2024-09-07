@@ -344,16 +344,21 @@ const createNewProduct = async (req, res) => {
 const editProduct = async (req, res) => {
     const { productId } = req.params;
     const { type, name, description, composition, price, structure, items } = req.body;
+
+    // Фотографии бокса
     const photos = req.files
         .filter(file => file.fieldname === 'photos')
         .map(file => file.filename);
+
+    // Фотографии элементов бокса
     const itemPhotos = req.files
         .filter(file => file.fieldname.startsWith('items'))
-        .map(file => file.filename);
-
-    console.log('Uploaded files:', req.files); // Для отладки
-    console.log('Photos:', photos);
-    console.log('Item Photos:', itemPhotos);
+        .reduce((acc, file) => {
+            const itemId = file.fieldname.split('[')[1].split(']')[0];
+            if (!acc[itemId]) acc[itemId] = [];
+            acc[itemId].push(file.filename);
+            return acc;
+        }, {});
 
     try {
         if (type === 'product') {
@@ -369,22 +374,32 @@ const editProduct = async (req, res) => {
             );
             await updatePhotos('recipePhotos', 'id_recipe', productId, photos);
         } else if (type === 'box') {
+            // Обновление информации о боксе
             await pool.query(
                 'UPDATE "boxes" SET name = $1, structure = $2, price = $3 WHERE id = $4',
                 [name, structure, price, productId]
             );
-            await updatePhotos('boxesPhotos', 'id_box', productId, photos);
 
+            // Обновление фотографий бокса
+            if (photos.length > 0) {
+                await updatePhotos('boxesPhotos', 'id_box', productId, photos);
+            }
+
+            // Обновление элементов бокса, если они переданы
             if (items && items.length > 0) {
                 for (const item of items) {
-                    const { id, description, itemPhotos } = item;
+                    const { id, description } = item;
 
+                    // Обновляем описание элемента бокса
                     await pool.query(
                         'UPDATE "boxItem" SET description = $1 WHERE id = $2 AND id_box = $3',
                         [description, id, productId]
                     );
 
-                    await updatePhotos('boxItemPhotos', 'id_boxItem', id, itemPhotos || []);
+                    // Обновляем фотографии элемента бокса, если новые фото переданы
+                    if (itemPhotos[id] && itemPhotos[id].length > 0) {
+                        await updatePhotos('boxItemPhotos', 'id_boxItem', id, itemPhotos[id]);
+                    }
                 }
             }
         } else {
@@ -398,38 +413,49 @@ const editProduct = async (req, res) => {
     }
 };
 
+
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
-	console.log('Updating photos:', { photoTable, foreignKey, id, newPhotos });
-	if (!newPhotos || newPhotos.length === 0) return;
+    console.log('Updating photos:', { photoTable, foreignKey, id, newPhotos });
 
-	const oldPhotosResult = await pool.query(
-		`SELECT photo_name FROM "${photoTable}" WHERE ${foreignKey} = $1`,
-		[id]
-	);
-	const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name);
+    // Получаем старые фотографии
+    const oldPhotosResult = await pool.query(
+        `SELECT photo_name FROM "${photoTable}" WHERE ${foreignKey} = $1`,
+        [id]
+    );
+    const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name);
 
-	console.log('Old photos:', oldPhotos);
+    console.log('Old photos:', oldPhotos);
 
-	await pool.query(`DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1`, [id]);
+    // Удаляем только те старые фотографии, которые были заменены
+    if (newPhotos && newPhotos.length > 0) {
+        const photosToDelete = oldPhotos.filter(oldPhoto => !newPhotos.includes(oldPhoto));
 
-	for (const photo of oldPhotos) {
-		const photoPath = path.join(__dirname, '../photos', photo);
-		fs.unlink(photoPath, err => {
-			if (err) console.error(`Error deleting file ${photo}:`, err);
-		});
-	}
+        for (const photo of photosToDelete) {
+            const photoPath = path.join(__dirname, '../photos', photo);
+            fs.unlink(photoPath, err => {
+                if (err) console.error(`Error deleting file ${photo}:`, err);
+            });
+        }
 
-	if (newPhotos.length > 0) {
-		const photoQueries = newPhotos.map(photo =>
-			pool.query(
-				`INSERT INTO "${photoTable}" (${foreignKey}, photo_name) VALUES ($1, $2)`,
-				[id, photo]
-			)
-		);
-		await Promise.all(photoQueries);
-	}
+        // Удаляем записи старых фотографий только для тех, которые были заменены
+        await pool.query(
+            `DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1 AND photo_name = ANY($2::text[])`,
+            [id, photosToDelete]
+        );
+    }
 
-	console.log('Photos updated successfully');
+    // Добавляем новые фотографии
+    if (newPhotos.length > 0) {
+        const photoQueries = newPhotos.map(photo =>
+            pool.query(
+                `INSERT INTO "${photoTable}" (${foreignKey}, photo_name) VALUES ($1, $2)`,
+                [id, photo]
+            )
+        );
+        await Promise.all(photoQueries);
+    }
+
+    console.log('Photos updated successfully');
 };
 
 

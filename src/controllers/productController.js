@@ -417,7 +417,7 @@ const editProduct = async (req, res) => {
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
     console.log('Updating photos:', { photoTable, foreignKey, id, newPhotos });
 
-    // Получаем старые фотографии
+    // Получаем старые фотографии из базы данных
     const oldPhotosResult = await pool.query(
         `SELECT photo_name FROM "${photoTable}" WHERE ${foreignKey} = $1`,
         [id]
@@ -432,16 +432,28 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 
         for (const photo of photosToDelete) {
             const photoPath = path.join(__dirname, '../photos', photo);
-            fs.unlink(photoPath, err => {
-                if (err) console.error(`Error deleting file ${photo}:`, err);
-            });
+
+            try {
+                // Проверяем, существует ли файл, перед его удалением
+                await fs.access(photoPath);  // Проверка наличия файла
+                await fs.unlink(photoPath);  // Удаление файла
+                console.log(`File ${photo} deleted successfully`);
+            } catch (err) {
+                if (err.code === 'ENOENT') {
+                    console.warn(`File ${photo} not found, skipping deletion`);
+                } else {
+                    console.error(`Error deleting file ${photo}:`, err);
+                }
+            }
         }
 
         // Удаляем записи старых фотографий только для тех, которые были заменены
-        await pool.query(
-            `DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1 AND photo_name = ANY($2::text[])`,
-            [id, photosToDelete]
-        );
+        if (photosToDelete.length > 0) {
+            await pool.query(
+                `DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1 AND photo_name = ANY($2::text[])`,
+                [id, photosToDelete]
+            );
+        }
     }
 
     // Добавляем новые фотографии

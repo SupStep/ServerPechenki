@@ -406,31 +406,45 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 	const oldPhotosResult = await pool.query(
 		`SELECT photo_name FROM "${photoTable}" WHERE ${foreignKey} = $1`,
 		[id]
-	)
-	const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name)
+	);
+	const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name);
 
-	// 2. Удалить старые записи из базы данных
-	await pool.query(`DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1`, [id])
+	// 2. Если новые фотографии пришли в запросе
+	if (newPhotos && newPhotos.length > 0) {
+		// 2.1 Удаляем старые записи из базы данных и файлы
+		for (const oldPhoto of oldPhotos) {
+			// Удаляем запись из базы данных
+			await pool.query(`DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1 AND photo_name = $2`, [id, oldPhoto]);
 
-	// 3. Удалить старые файлы фотографий из файловой системы
-	for (const photo of oldPhotos) {
-		const photoPath = path.join(__dirname, 'uploads', photo) // Предполагаем, что фотографии хранятся в 'uploads'
-		fs.unlink(photoPath, err => {
-			if (err) console.error(`Error deleting file ${photo}:`, err)
-		})
-	}
+			// Проверяем, существует ли файл, и если да, удаляем его
+			const oldPhotoPath = path.join(__dirname, 'uploads', oldPhoto);
+			fs.access(oldPhotoPath, fs.constants.F_OK, (err) => {
+				if (!err) {
+					fs.unlink(oldPhotoPath, (unlinkErr) => {
+						if (unlinkErr) {
+							console.error(`Error deleting file ${oldPhoto}:`, unlinkErr);
+						} else {
+							console.log(`File ${oldPhoto} successfully deleted`);
+						}
+					});
+				} else {
+					console.error(`File ${oldPhoto} does not exist in the file system.`);
+				}
+			});
+		}
 
-	// 4. Добавить новые фотографии в базу данных
-	if (newPhotos.length > 0) {
-		const photoQueries = newPhotos.map(photo =>
-			pool.query(
+		// 2.2 Добавляем новые фотографии в базу данных
+		for (const newPhoto of newPhotos) {
+			await pool.query(
 				`INSERT INTO "${photoTable}" (${foreignKey}, photo_name) VALUES ($1, $2)`,
-				[id, photo]
-			)
-		)
-		await Promise.all(photoQueries)
+				[id, newPhoto]
+			);
+		}
+	} else {
+		// 3. Если новые фотографии не пришли, ничего не делаем с существующими
+		console.log("No new photos provided. Skipping photo update.");
 	}
-}
+};
 
 const deleteOneProduct = async (req, res) => {
 	const { productId } = req.params

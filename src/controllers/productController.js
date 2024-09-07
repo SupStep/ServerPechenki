@@ -351,8 +351,11 @@ const editProduct = async (req, res) => {
 		.filter(file => file.fieldname.startsWith('items'))
 		.map(file => file.filename);
 
+	console.log('Uploaded files:', req.files); // Добавлено для отладки
+	console.log('Photos:', photos);
+	console.log('Item Photos:', itemPhotos);
+
 	try {
-		console.log('Uploaded files:', req.files);
 		if (type === 'product') {
 			await pool.query(
 				'UPDATE "products" SET name = $1, description = $2, composition = $3, price = $4 WHERE id = $5',
@@ -395,8 +398,6 @@ const editProduct = async (req, res) => {
 	}
 };
 
-
-
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 	console.log('Updating photos:', { photoTable, foreignKey, id, newPhotos });
 	if (!newPhotos || newPhotos.length === 0) return;
@@ -430,7 +431,6 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 
 	console.log('Photos updated successfully');
 };
-
 
 
 

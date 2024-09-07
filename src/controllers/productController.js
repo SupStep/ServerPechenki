@@ -222,124 +222,106 @@ const createNewProduct = async (req, res) => {
 		section,
 		structure,
 		items,
-	} = req.body
+	} = req.body;
 
 	const photos = req.files
 		.filter(file => file.fieldname === 'photos')
-		.map(file => file.filename)
-	const itemPhotos = req.files
-		.filter(file => file.fieldname.startsWith('items'))
-		.map(file => file.filename)
+		.map(file => file.filename);
+	const itemPhotos = req.body.items || {};
 
 	try {
-		let productId
+		let productId;
 
 		if (type === 'product') {
 			const productResult = await pool.query(
 				'INSERT INTO "products" (name, description, composition, price) VALUES ($1, $2, $3, $4) RETURNING id',
 				[name, description, composition, price]
-			)
-			productId = productResult.rows[0].id
+			);
+			productId = productResult.rows[0].id;
 
+			// Сохраняем фотографии продукта
 			if (photos.length > 0) {
 				const photoQueries = photos.map(photo =>
 					pool.query(
 						'INSERT INTO "productPhotos" (id_product, photo_name) VALUES ($1, $2)',
 						[productId, photo]
 					)
-				)
-				await Promise.all(photoQueries)
+				);
+				await Promise.all(photoQueries);
 			}
 
+			// Обработка секции
 			if (section) {
-				let sectionId
+				let sectionId;
 				const sectionResult = await pool.query(
 					'SELECT id FROM "sections" WHERE name = $1',
 					[section]
-				)
-
+				);
 				if (sectionResult.rows.length > 0) {
-					sectionId = sectionResult.rows[0].id
+					sectionId = sectionResult.rows[0].id;
 				} else {
 					const newSectionResult = await pool.query(
 						'INSERT INTO "sections" (name) VALUES ($1) RETURNING id',
 						[section]
-					)
-					sectionId = newSectionResult.rows[0].id
+					);
+					sectionId = newSectionResult.rows[0].id;
 				}
-
 				await pool.query(
 					'INSERT INTO "productSections" (id_product, id_section) VALUES ($1, $2)',
 					[productId, sectionId]
-				)
-			}
-		} else if (type === 'recipe') {
-			const recipeResult = await pool.query(
-				'INSERT INTO "recipes" (name, description, price) VALUES ($1, $2, $3) RETURNING id',
-				[name, description, price]
-			)
-			productId = recipeResult.rows[0].id
-
-			if (photos.length > 0) {
-				const photoQueries = photos.map(photo =>
-					pool.query(
-						'INSERT INTO "recipePhotos" (id_recipe, photo_name) VALUES ($1, $2)',
-						[productId, photo]
-					)
-				)
-				await Promise.all(photoQueries)
+				);
 			}
 		} else if (type === 'box') {
+			// Логика для бокса
 			const boxResult = await pool.query(
 				'INSERT INTO "boxes" (name, structure, price) VALUES ($1, $2, $3) RETURNING id',
 				[name, structure, price]
-			)
-			productId = boxResult.rows[0].id
+			);
+			productId = boxResult.rows[0].id;
 
+			// Сохраняем фотографии бокса
 			if (photos.length > 0) {
 				const photoQueries = photos.map(photo =>
 					pool.query(
 						'INSERT INTO "boxesPhotos" (id_box, photo_name) VALUES ($1, $2)',
 						[productId, photo]
 					)
-				)
-				await Promise.all(photoQueries)
+				);
+				await Promise.all(photoQueries);
 			}
 
-			// Создание элементов бокса
+			// Сохраняем элементы бокса
 			if (items && items.length > 0) {
-				for (const item of items) {
-					const { description, itemPhotos } = item
-
-					// Вставка элементов бокса
+				for (const itemId in items) {
+					const { description, photos: itemPhotosArray } = items[itemId];
 					const itemResult = await pool.query(
 						'INSERT INTO "boxItem" (id_box, description) VALUES ($1, $2) RETURNING id',
 						[productId, description]
-					)
-					const itemId = itemResult.rows[0].id
+					);
+					const newItemId = itemResult.rows[0].id;
 
-					// Вставка фотографий элементов бокса
-					if (itemPhotos && itemPhotos.length > 0) {
-						const itemPhotoQueries = itemPhotos.map(photo =>
+					if (itemPhotosArray && itemPhotosArray.length > 0) {
+						const itemPhotoQueries = itemPhotosArray.map(photo =>
 							pool.query(
-								'INSERT INTO "boxItemPhotos" ("id_boxItem", photo_name) VALUES ($1, $2)',
-								[itemId, photo]
+								'INSERT INTO "boxItemPhotos" (id_boxItem, photo_name) VALUES ($1, $2)',
+								[newItemId, photo]
 							)
-						)
-						await Promise.all(itemPhotoQueries)
+						);
+						await Promise.all(itemPhotoQueries);
 					}
 				}
 			}
 		} else {
-			return res.status(400).send('Invalid product type')
+			return res.status(400).send('Invalid product type');
 		}
 
-		res.status(201).send('Product created')
+		res.status(201).send('Product created');
 	} catch (error) {
-		console.error('Error creating product:', error)
-		res.status(500).send('Server error')
+		console.error('Error creating product:', error);
+		res.status(500).send('Server error');
 	}
-}
+};
+
 
 const editProduct = async (req, res) => {
     const { productId } = req.params;

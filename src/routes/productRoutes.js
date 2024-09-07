@@ -14,7 +14,7 @@ router.get('/', productController.getAllProduct)
 
 router.post(
 	'/',
-	upload.any(),
+	upload.any(), // Мы будем обрабатывать любые файлы
 	async (req, res, next) => {
 		if (req.files && req.files.length > 0) {
 			try {
@@ -26,20 +26,22 @@ router.post(
 						await sharp(file.buffer)
 							.rotate()
 							.resize({ width: 600 })
-							.toFormat('jpeg') // можно конвертировать в другой формат (например, в jpeg)
-							.jpeg({ quality: 90 }) // устанавливаем качество изображения
+							.toFormat('jpeg') // Конвертируем в jpeg
+							.jpeg({ quality: 90 }) // Устанавливаем качество
 							.toFile(uploadPath);
-						// Проверка: файл относится к элементу бокса или к основному продукту?
+
+						// Проверка: файл относится к элементу бокса или к основному продукту
 						if (file.fieldname.startsWith('items')) {
-							// Файл для элемента бокса
+							// Извлечение ID элемента бокса из имени поля
 							const itemId = file.fieldname.split('[')[1].split(']')[0];
+							
 							if (!req.body.items) req.body.items = {};
 							if (!req.body.items[itemId]) req.body.items[itemId] = {};
 							if (!req.body.items[itemId].photos) req.body.items[itemId].photos = [];
 
-							req.body.items[itemId].photos.push(filename);
+							req.body.items[itemId].photos.push(filename);  // Добавляем имя файла
 						} else {
-							// Файл для основного продукта
+							// Файл относится к основному продукту
 							file.filename = filename;
 						}
 					})
@@ -61,31 +63,32 @@ router.delete('/:productId', productController.deleteOneProduct)
 
 router.post('/login', productController.authenticateUser)
 
-router.put('/:productId', upload.fields([
-    { name: 'photos', maxCount: 10 },  // Для основного бокса
-    { name: 'items', maxCount: 50 }    // Для элементов бокса
-]), async (req, res, next) => {
+router.put('/:productId', upload.any(), async (req, res, next) => {
     if (req.files && req.files.length > 0) {
         try {
             await Promise.all(
-                Object.keys(req.files).map(async field => {
-                    const files = req.files[field];
-                    await Promise.all(
-                        files.map(async file => {
-                            const filename = Date.now() + path.extname(file.originalname);
-                            const uploadPath = path.join(__dirname, '../photos', filename);
+                req.files.map(async file => {
+                    const filename = Date.now() + path.extname(file.originalname);
+                    const uploadPath = path.join(__dirname, '../photos', filename);
 
-                            await sharp(file.buffer)
-                                .rotate()
-                                .resize({ width: 600 })
-                                .toFormat('jpeg')
-                                .jpeg({ quality: 90 })
-                                .toFile(uploadPath);
+                    await sharp(file.buffer)
+                        .rotate()
+                        .resize({ width: 600 })
+                        .toFormat('jpeg')
+                        .jpeg({ quality: 90 })
+                        .toFile(uploadPath);
 
-                            // Обновляем имя файла
-                            file.filename = filename;
-                        })
-                    );
+                    // Обработка файлов элементов бокса
+                    if (file.fieldname.startsWith('items')) {
+                        const itemId = file.fieldname.split('[')[1].split(']')[0];
+                        if (!req.body.items) req.body.items = {};
+                        if (!req.body.items[itemId]) req.body.items[itemId] = {};
+                        if (!req.body.items[itemId].photos) req.body.items[itemId].photos = [];
+
+                        req.body.items[itemId].photos.push(filename);  // Добавляем имя файла
+                    } else {
+                        file.filename = filename;
+                    }
                 })
             );
             next();
@@ -97,6 +100,7 @@ router.put('/:productId', upload.fields([
         next();
     }
 }, productController.editProduct);
+
 
 
 module.exports = router

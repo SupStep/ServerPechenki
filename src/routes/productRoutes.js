@@ -24,6 +24,7 @@ router.post(
 						const uploadPath = path.join(__dirname, '../photos', filename)
 
 						await sharp(file.buffer)
+							.rotate()
 							.resize({ width: 600 })
 							.toFormat('jpeg') // можно конвертировать в другой формат (например, в jpeg)
 							.jpeg({ quality: 90 }) // устанавливаем качество изображения
@@ -59,6 +60,7 @@ router.put('/:productId', upload.any(), async (req, res, next) => {
                     const uploadPath = path.join(__dirname, '../photos', filename);
 
                     await sharp(file.buffer)
+			.rotate()
                         .resize({ width: 600 })
                         .toFormat('jpeg') // Можно изменить формат на другой
                         .jpeg({ quality: 90 }) // Устанавливаем качество изображения

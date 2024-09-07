@@ -413,7 +413,6 @@ const editProduct = async (req, res) => {
     }
 };
 
-
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
     console.log('Updating photos:', { photoTable, foreignKey, id, newPhotos });
 
@@ -469,8 +468,6 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 
     console.log('Photos updated successfully');
 };
-
-
 
 const deleteOneProduct = async (req, res) => {
 	const { productId } = req.params

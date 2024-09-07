@@ -49,6 +49,6 @@ router.delete('/:productId', productController.deleteOneProduct)
 
 router.post('/login', productController.authenticateUser)
 
-router.put('/:productId', productController.editProduct)
+router.put('/:productId', upload.any(), productController.editProduct); 
 
 module.exports = router

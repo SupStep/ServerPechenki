@@ -71,6 +71,7 @@ router.put('/:productId', upload.any(), async (req, res, next) => {
                     const filename = Date.now() + path.extname(file.originalname);
                     const uploadPath = path.join(__dirname, '../photos', filename);
 
+                    // Обработка изображений с помощью Sharp (вращение, изменение размера и конвертация в JPEG)
                     await sharp(file.buffer)
                         .rotate()
                         .resize({ width: 600 })
@@ -78,15 +79,17 @@ router.put('/:productId', upload.any(), async (req, res, next) => {
                         .jpeg({ quality: 90 })
                         .toFile(uploadPath);
 
-                    // Обработка файлов элементов бокса
+                    // Обработка файлов для элементов бокса
                     if (file.fieldname.startsWith('items')) {
                         const itemId = file.fieldname.split('[')[1].split(']')[0];
                         if (!req.body.items) req.body.items = {};
                         if (!req.body.items[itemId]) req.body.items[itemId] = {};
                         if (!req.body.items[itemId].photos) req.body.items[itemId].photos = [];
 
-                        req.body.items[itemId].photos.push(filename);  // Добавляем имя файла
+                        // Добавляем имя файла в соответствующий элемент бокса
+                        req.body.items[itemId].photos.push(filename);
                     } else {
+                        // Обработка файлов продукта или бокса
                         file.filename = filename;
                     }
                 })

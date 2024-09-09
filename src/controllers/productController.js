@@ -222,22 +222,22 @@ const createNewProduct = async (req, res) => {
 		section,
 		structure,
 		items,
-	} = req.body;
+	} = req.body
 
 	const photos = req.files
 		.filter(file => file.fieldname === 'photos')
-		.map(file => file.filename);
-	const itemPhotos = req.body.items || {};
+		.map(file => file.filename)
+	const itemPhotos = req.body.items || {}
 
 	try {
-		let productId;
+		let productId
 
 		if (type === 'product') {
 			const productResult = await pool.query(
 				'INSERT INTO "products" (name, description, composition, price) VALUES ($1, $2, $3, $4) RETURNING id',
 				[name, description, composition, price]
-			);
-			productId = productResult.rows[0].id;
+			)
+			productId = productResult.rows[0].id
 
 			// Сохраняем фотографии продукта
 			if (photos.length > 0) {
@@ -246,38 +246,37 @@ const createNewProduct = async (req, res) => {
 						'INSERT INTO "productPhotos" (id_product, photo_name) VALUES ($1, $2)',
 						[productId, photo]
 					)
-				);
-				await Promise.all(photoQueries);
+				)
+				await Promise.all(photoQueries)
 			}
 
 			// Обработка секции
 			if (section) {
-				let sectionId;
+				let sectionId
 				const sectionResult = await pool.query(
 					'SELECT id FROM "sections" WHERE name = $1',
 					[section]
-				);
+				)
 				if (sectionResult.rows.length > 0) {
-					sectionId = sectionResult.rows[0].id;
+					sectionId = sectionResult.rows[0].id
 				} else {
 					const newSectionResult = await pool.query(
 						'INSERT INTO "sections" (name) VALUES ($1) RETURNING id',
 						[section]
-					);
-					sectionId = newSectionResult.rows[0].id;
+					)
+					sectionId = newSectionResult.rows[0].id
 				}
 				await pool.query(
 					'INSERT INTO "productSections" (id_product, id_section) VALUES ($1, $2)',
 					[productId, sectionId]
-				);
+				)
 			}
 		} else if (type === 'box') {
-			// Логика для бокса
 			const boxResult = await pool.query(
 				'INSERT INTO "boxes" (name, structure, price) VALUES ($1, $2, $3) RETURNING id',
 				[name, structure, price]
-			);
-			productId = boxResult.rows[0].id;
+			)
+			productId = boxResult.rows[0].id
 
 			// Сохраняем фотографии бокса
 			if (photos.length > 0) {
@@ -286,19 +285,19 @@ const createNewProduct = async (req, res) => {
 						'INSERT INTO "boxesPhotos" (id_box, photo_name) VALUES ($1, $2)',
 						[productId, photo]
 					)
-				);
-				await Promise.all(photoQueries);
+				)
+				await Promise.all(photoQueries)
 			}
 
 			// Сохраняем элементы бокса
 			if (items && items.length > 0) {
 				for (const itemId in items) {
-					const { description, photos: itemPhotosArray } = items[itemId];
+					const { description, photos: itemPhotosArray } = items[itemId]
 					const itemResult = await pool.query(
 						'INSERT INTO "boxItem" (id_box, description) VALUES ($1, $2) RETURNING id',
 						[productId, description]
-					);
-					const newItemId = itemResult.rows[0].id;
+					)
+					const newItemId = itemResult.rows[0].id
 
 					if (itemPhotosArray && itemPhotosArray.length > 0) {
 						const itemPhotoQueries = itemPhotosArray.map(photo =>
@@ -306,153 +305,161 @@ const createNewProduct = async (req, res) => {
 								'INSERT INTO "boxItemPhotos" ("id_boxItem", "photo_name") VALUES ($1, $2)',
 								[newItemId, photo]
 							)
-						);
-						await Promise.all(itemPhotoQueries);
+						)
+						await Promise.all(itemPhotoQueries)
 					}
 				}
 			}
 		} else {
-			return res.status(400).send('Invalid product type');
+			return res.status(400).send('Invalid product type')
 		}
 
-		res.status(201).send('Product created');
+		res.status(201).send('Product created')
 	} catch (error) {
-		console.error('Error creating product:', error);
-		res.status(500).send('Server error');
+		console.error('Error creating product:', error)
+		res.status(500).send('Server error')
 	}
-};
+}
 const editProduct = async (req, res) => {
-    const { productId } = req.params;
-    const { type, name, description, composition, price, structure, items } = req.body;
+	const { productId } = req.params
+	const { type, name, description, composition, price, structure, items } =
+		req.body
 
-    // Фотографии самого продукта/бокса
-    const photos = req.files
-        .filter(file => file.fieldname === 'photos')
-        .map(file => file.filename);
+	// Фотографии самого продукта/бокса
+	const photos = req.files
+		.filter(file => file.fieldname === 'photos')
+		.map(file => file.filename)
 
-    // Фотографии элементов бокса
-    const itemPhotos = req.files
-        .filter(file => file.fieldname.startsWith('items'))
-        .reduce((acc, file) => {
-            const itemId = file.fieldname.split('[')[1].split(']')[0];
-            if (!acc[itemId]) acc[itemId] = [];
-            acc[itemId].push(file.filename);
-            return acc;
-        }, {});
+	// Фотографии элементов бокса
+	const itemPhotos = req.files
+		.filter(file => file.fieldname.startsWith('items'))
+		.reduce((acc, file) => {
+			const itemId = file.fieldname.split('[')[1].split(']')[0]
+			if (!acc[itemId]) acc[itemId] = []
+			acc[itemId].push(file.filename)
+			return acc
+		}, {})
 
-    try {
-        if (type === 'product') {
-            // Обновляем продукт
-            await pool.query(
-                'UPDATE "products" SET name = $1, description = $2, composition = $3, price = $4 WHERE id = $5',
-                [name, description, composition, price, productId]
-            );
-            // Обновляем фотографии продукта
-            await updatePhotos('productPhotos', 'id_product', productId, photos);
-        } else if (type === 'recipe') {
-            // Обновляем рецепт
-            await pool.query(
-                'UPDATE "recipes" SET name = $1, description = $2, price = $3 WHERE id = $4',
-                [name, description, price, productId]
-            );
-            // Обновляем фотографии рецепта
-            await updatePhotos('recipePhotos', 'id_recipe', productId, photos);
-        } else if (type === 'box') {
-            // Обновляем бокс
-            await pool.query(
-                'UPDATE "boxes" SET name = $1, structure = $2, price = $3 WHERE id = $4',
-                [name, structure, price, productId]
-            );
+	try {
+		if (type === 'product') {
+			// Обновляем продукт
+			await pool.query(
+				'UPDATE "products" SET name = $1, description = $2, composition = $3, price = $4 WHERE id = $5',
+				[name, description, composition, price, productId]
+			)
+			// Обновляем фотографии продукта
+			await updatePhotos('productPhotos', 'id_product', productId, photos)
+		} else if (type === 'recipe') {
+			// Обновляем рецепт
+			await pool.query(
+				'UPDATE "recipes" SET name = $1, description = $2, price = $3 WHERE id = $4',
+				[name, description, price, productId]
+			)
+			// Обновляем фотографии рецепта
+			await updatePhotos('recipePhotos', 'id_recipe', productId, photos)
+		} else if (type === 'box') {
+			// Обновляем бокс
+			await pool.query(
+				'UPDATE "boxes" SET name = $1, structure = $2, price = $3 WHERE id = $4',
+				[name, structure, price, productId]
+			)
 
-            // Обновляем фотографии бокса
-            if (photos.length > 0) {
-                await updatePhotos('boxesPhotos', 'id_box', productId, photos);
-            }
+			// Обновляем фотографии бокса
+			if (photos.length > 0) {
+				await updatePhotos('boxesPhotos', 'id_box', productId, photos)
+			}
 
-            // Обновляем элементы бокса, если они переданы
-            if (items && items.length > 0) {
-                for (const item of items) {
-                    const { id, description } = item;
+			// Обновляем элементы бокса, если они переданы
+			if (items && items.length > 0) {
+				for (const item of items) {
+					const { id, description } = item
 
-                    // Обновляем описание элемента бокса
-                    await pool.query(
-                        'UPDATE "boxItem" SET description = $1 WHERE id = $2 AND id_box = $3',
-                        [description, id, productId]
-                    );
+					// Обновляем описание элемента бокса
+					await pool.query(
+						'UPDATE "boxItem" SET description = $1 WHERE id = $2 AND id_box = $3',
+						[description, id, productId]
+					)
 
-                    // Обновляем фотографии элемента бокса
-                    if (itemPhotos[id] && itemPhotos[id].length > 0) {
-                        await updatePhotos('boxItemPhotos', 'id_boxItem', id, itemPhotos[id]);
-                    }
-                }
-            }
-        } else {
-            return res.status(400).json({ error: 'Invalid product type' });
-        }
+					// Обновляем фотографии элемента бокса
+					if (itemPhotos[id] && itemPhotos[id].length > 0) {
+						await updatePhotos(
+							'boxItemPhotos',
+							'id_boxItem',
+							id,
+							itemPhotos[id]
+						)
+					}
+				}
+			}
+		} else {
+			return res.status(400).json({ error: 'Invalid product type' })
+		}
 
-        res.status(200).json({ message: 'Product updated successfully' });
-    } catch (error) {
-        console.error('Error updating product:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-};
+		res.status(200).json({ message: 'Product updated successfully' })
+	} catch (error) {
+		console.error('Error updating product:', error)
+		res.status(500).json({ error: 'Internal Server Error' })
+	}
+}
 
 // Вспомогательная функция для обновления фотографий
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
-    console.log('Updating photos:', { photoTable, foreignKey, id, newPhotos });
+	console.log('Updating photos:', { photoTable, foreignKey, id, newPhotos })
 
-    // Получаем старые фотографии из базы данных
-    const oldPhotosResult = await pool.query(
-        `SELECT photo_name FROM "${photoTable}" WHERE ${foreignKey} = $1`,
-        [id]
-    );
-    const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name);
+	// Получаем старые фотографии из базы данных
+	const oldPhotosResult = await pool.query(
+		`SELECT photo_name FROM "${photoTable}" WHERE ${foreignKey} = $1`,
+		[id]
+	)
+	const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name)
 
-    console.log('Old photos:', oldPhotos);
+	console.log('Old photos:', oldPhotos)
 
-    // Удаляем только те старые фотографии, которые были заменены
-    if (newPhotos && newPhotos.length > 0) {
-        const photosToDelete = oldPhotos.filter(oldPhoto => !newPhotos.includes(oldPhoto));
+	// Удаляем только те старые фотографии, которые были заменены
+	if (newPhotos && newPhotos.length > 0) {
+		const photosToDelete = oldPhotos.filter(
+			oldPhoto => !newPhotos.includes(oldPhoto)
+		)
 
-        for (const photo of photosToDelete) {
-            const photoPath = path.join(__dirname, '../photos', photo);
+		for (const photo of photosToDelete) {
+			const photoPath = path.join(__dirname, '../photos', photo)
 
-            try {
-                // Проверяем, существует ли файл, перед его удалением
-                await fs.access(photoPath);  // Проверка наличия файла
-                await fs.unlink(photoPath);  // Удаление файла
-                console.log(`File ${photo} deleted successfully`);
-            } catch (err) {
-                if (err.code === 'ENOENT') {
-                    console.warn(`File ${photo} not found, skipping deletion`);
-                } else {
-                    console.error(`Error deleting file ${photo}:`, err);
-                }
-            }
-        }
+			try {
+				// Проверяем, существует ли файл, перед его удалением
+				await fs.access(photoPath) // Проверка наличия файла
+				await fs.unlink(photoPath) // Удаление файла
+				console.log(`File ${photo} deleted successfully`)
+			} catch (err) {
+				if (err.code === 'ENOENT') {
+					console.warn(`File ${photo} not found, skipping deletion`)
+				} else {
+					console.error(`Error deleting file ${photo}:`, err)
+				}
+			}
+		}
 
-        // Удаляем записи старых фотографий только для тех, которые были заменены
-        if (photosToDelete.length > 0) {
-            await pool.query(
-                `DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1 AND photo_name = ANY($2::text[])`,
-                [id, photosToDelete]
-            );
-        }
-    }
+		// Удаляем записи старых фотографий только для тех, которые были заменены
+		if (photosToDelete.length > 0) {
+			await pool.query(
+				`DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1 AND photo_name = ANY($2::text[])`,
+				[id, photosToDelete]
+			)
+		}
+	}
 
-    // Добавляем новые фотографии
-    if (newPhotos.length > 0) {
-        const photoQueries = newPhotos.map(photo =>
-            pool.query(
-                `INSERT INTO "${photoTable}" (${foreignKey}, photo_name) VALUES ($1, $2)`,
-                [id, photo]
-            )
-        );
-        await Promise.all(photoQueries);
-    }
+	// Добавляем новые фотографии
+	if (newPhotos.length > 0) {
+		const photoQueries = newPhotos.map(photo =>
+			pool.query(
+				`INSERT INTO "${photoTable}" (${foreignKey}, photo_name) VALUES ($1, $2)`,
+				[id, photo]
+			)
+		)
+		await Promise.all(photoQueries)
+	}
 
-    console.log('Photos updated successfully');
-};
+	console.log('Photos updated successfully')
+}
 const deleteOneProduct = async (req, res) => {
 	const { productId } = req.params
 	const { type } = req.body

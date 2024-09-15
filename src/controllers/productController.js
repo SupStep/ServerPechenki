@@ -234,7 +234,7 @@ const createNewProduct = async (req, res) => {
 		if (type === 'product') {
 			// Создание нового продукта
 			const productResult = await pool.query(
-				'INSERT INTO "products" (name, description, composition, price) VALUES ($1, $2, $3, $4) RETURNING id',
+				'INSERT INTO "products" ("name", "description", "composition", "price") VALUES ($1, $2, $3, $4) RETURNING id',
 				[name, description, composition, price]
 			)
 			productId = productResult.rows[0].id
@@ -243,7 +243,7 @@ const createNewProduct = async (req, res) => {
 			if (photos.length > 0) {
 				const photoQueries = photos.map(photo =>
 					pool.query(
-						'INSERT INTO "productPhotos" (id_product, photo_name) VALUES ($1, $2)',
+						'INSERT INTO "productPhotos" ("id_product", "photo_name") VALUES ($1, $2)',
 						[productId, photo]
 					)
 				)
@@ -254,27 +254,27 @@ const createNewProduct = async (req, res) => {
 			if (section) {
 				let sectionId
 				const sectionResult = await pool.query(
-					'SELECT id FROM "sections" WHERE name = $1',
+					'SELECT id FROM "sections" WHERE "name" = $1',
 					[section]
 				)
 				if (sectionResult.rows.length > 0) {
 					sectionId = sectionResult.rows[0].id
 				} else {
 					const newSectionResult = await pool.query(
-						'INSERT INTO "sections" (name) VALUES ($1) RETURNING id',
+						'INSERT INTO "sections" ("name") VALUES ($1) RETURNING id',
 						[section]
 					)
 					sectionId = newSectionResult.rows[0].id
 				}
 				await pool.query(
-					'INSERT INTO "productSections" (id_product, id_section) VALUES ($1, $2)',
+					'INSERT INTO "productSections" ("id_product", "id_section") VALUES ($1, $2)',
 					[productId, sectionId]
 				)
 			}
 		} else if (type === 'box') {
 			// Создание нового бокса
 			const boxResult = await pool.query(
-				'INSERT INTO "boxes" (name, structure, price) VALUES ($1, $2, $3) RETURNING id',
+				'INSERT INTO "boxes" ("name", "structure", "price") VALUES ($1, $2, $3) RETURNING id',
 				[name, structure, price]
 			)
 			productId = boxResult.rows[0].id
@@ -283,7 +283,7 @@ const createNewProduct = async (req, res) => {
 			if (photos.length > 0) {
 				const photoQueries = photos.map(photo =>
 					pool.query(
-						'INSERT INTO "boxesPhotos" (id_box, photo_name) VALUES ($1, $2)',
+						'INSERT INTO "boxesPhotos" ("id_box", "photo_name") VALUES ($1, $2)',
 						[productId, photo]
 					)
 				)
@@ -296,7 +296,7 @@ const createNewProduct = async (req, res) => {
 			}
 
 			const boxItemResult = await pool.query(
-				'INSERT INTO "boxItem" (id_box, description) VALUES ($1, $2) RETURNING id',
+				'INSERT INTO "boxItem" ("id_box", "description") VALUES ($1, $2) RETURNING id',
 				[boxId, description]
 			)
 			productId = boxItemResult.rows[0].id
@@ -305,7 +305,7 @@ const createNewProduct = async (req, res) => {
 			if (photos.length > 0) {
 				const photoQueries = photos.map(photo =>
 					pool.query(
-						'INSERT INTO "boxItemPhotos" (id_boxItem, photo_name) VALUES ($1, $2)',
+						'INSERT INTO "boxItemPhotos" ("id_boxItem", "photo_name") VALUES ($1, $2)',
 						[productId, photo]
 					)
 				)

@@ -17,9 +17,6 @@ const photosDir = path.join(__dirname, 'src/photos')
 
 app.use('/photos', express.static(photosDir))
 
-app.use(express.json({ limit: '200mb' }));
-app.use(express.urlencoded({ limit: '200mb', extended: true }));
-
 app.listen(PORT, () => {
 	console.log(`app listening on port ${PORT}`)
 })

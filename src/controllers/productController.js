@@ -221,18 +221,18 @@ const createNewProduct = async (req, res) => {
 		price,
 		section,
 		structure,
-		items,
+		boxId, // Используем только если тип 'boxItem'
 	} = req.body
 
 	const photos = req.files
 		.filter(file => file.fieldname === 'photos')
 		.map(file => file.filename)
-	const itemPhotos = req.body.items || {}
 
 	try {
 		let productId
 
 		if (type === 'product') {
+			// Создание нового продукта
 			const productResult = await pool.query(
 				'INSERT INTO "products" (name, description, composition, price) VALUES ($1, $2, $3, $4) RETURNING id',
 				[name, description, composition, price]
@@ -272,6 +272,7 @@ const createNewProduct = async (req, res) => {
 				)
 			}
 		} else if (type === 'box') {
+			// Создание нового бокса
 			const boxResult = await pool.query(
 				'INSERT INTO "boxes" (name, structure, price) VALUES ($1, $2, $3) RETURNING id',
 				[name, structure, price]
@@ -288,27 +289,27 @@ const createNewProduct = async (req, res) => {
 				)
 				await Promise.all(photoQueries)
 			}
+		} else if (type === 'boxItem') {
+			// Создание элемента бокса
+			if (!boxId) {
+				return res.status(400).send('Box ID is required for box items')
+			}
 
-			// Сохраняем элементы бокса
-			if (items && items.length > 0) {
-				for (const itemId in items) {
-					const { description, photos: itemPhotosArray } = items[itemId]
-					const itemResult = await pool.query(
-						'INSERT INTO "boxItem" (id_box, description) VALUES ($1, $2) RETURNING id',
-						[productId, description]
+			const boxItemResult = await pool.query(
+				'INSERT INTO "boxItem" (id_box, description) VALUES ($1, $2) RETURNING id',
+				[boxId, description]
+			)
+			productId = boxItemResult.rows[0].id
+
+			// Сохраняем фотографии элемента бокса
+			if (photos.length > 0) {
+				const photoQueries = photos.map(photo =>
+					pool.query(
+						'INSERT INTO "boxItemPhotos" (id_boxItem, photo_name) VALUES ($1, $2)',
+						[productId, photo]
 					)
-					const newItemId = itemResult.rows[0].id
-
-					if (itemPhotosArray && itemPhotosArray.length > 0) {
-						const itemPhotoQueries = itemPhotosArray.map(photo =>
-							pool.query(
-								'INSERT INTO "boxItemPhotos" ("id_boxItem", "photo_name") VALUES ($1, $2)',
-								[newItemId, photo]
-							)
-						)
-						await Promise.all(itemPhotoQueries)
-					}
-				}
+				)
+				await Promise.all(photoQueries)
 			}
 		} else {
 			return res.status(400).send('Invalid product type')
@@ -320,6 +321,7 @@ const createNewProduct = async (req, res) => {
 		res.status(500).send('Server error')
 	}
 }
+
 const editProduct = async (req, res) => {
 	const { productId } = req.params
 	const { type, name, description, composition, price, structure, items } =
@@ -460,6 +462,7 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 
 	console.log('Photos updated successfully')
 }
+
 const deleteOneProduct = async (req, res) => {
 	const { productId } = req.params
 	const { type } = req.body

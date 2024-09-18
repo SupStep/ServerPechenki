@@ -1,6 +1,6 @@
 const pool = require('../db/db')
 const bcrypt = require('bcryptjs')
-const fs = require('fs')
+const fs = require('fs').promises
 const path = require('path')
 const saltRounds = 10
 
@@ -392,10 +392,10 @@ const editProduct = async (req, res) => {
 			}
 
 			// Обновляем описание и фотографии элемента бокса
-			await pool.query('UPDATE "boxItem" SET description = $1 WHERE id = $2', [
-				description,
-				productId,
-			])
+			await pool.query(
+				'UPDATE "boxItem" SET "description" = $1 WHERE "id" = $2',
+				[description, productId]
+			)
 
 			if (photos.length > 0) {
 				await updatePhotos('boxItemPhotos', 'id_boxItem', productId, photos)
@@ -446,7 +446,7 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 		// Удаляем записи старых фотографий только для тех, которые были заменены
 		if (photosToDelete.length > 0) {
 			await pool.query(
-				`DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1 AND photo_name = ANY($2::text[])`,
+				`DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1 AND "photo_name" = ANY($2::text[])`,
 				[id, photosToDelete]
 			)
 		}
@@ -456,7 +456,7 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 	if (newPhotos.length > 0) {
 		const photoQueries = newPhotos.map(photo =>
 			pool.query(
-				`INSERT INTO "${photoTable}" (${foreignKey}, photo_name) VALUES ($1, $2)`,
+				`INSERT INTO "${photoTable}" ("${foreignKey}", "photo_name") VALUES ($1, $2)`,
 				[id, photo]
 			)
 		)

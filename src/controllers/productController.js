@@ -271,6 +271,22 @@ const createNewProduct = async (req, res) => {
 					[productId, sectionId]
 				)
 			}
+		} else if (type === 'recipe') {
+			const recipeResult = await pool.query(
+				'INSERT INTO "recipes" ("name", "description", "price") VALUES ($1, $2, $3) RETURNING id',
+				[name, description, price]
+			)
+			productId = recipeResult.rows[0].id
+
+			if (photos.length > 0) {
+				const photoQueries = photos.map(photo =>
+					pool.query(
+						'INSERT INTO "recipePhotos" ("id_recipe", "photo_name") VALUES ($1, $2)',
+						[productId, photo]
+					)
+				)
+				await Promise.all(photoQueries)
+			}
 		} else if (type === 'box') {
 			// Создание нового бокса
 			const boxResult = await pool.query(
@@ -393,6 +409,21 @@ const editProduct = async (req, res) => {
 					}
 				}
 			}
+		} else if (type === 'boxItem') {
+			// Обновляем элемент бокса
+			if (!productId) {
+				return res.status(400).send('Product ID is required for box items')
+			}
+
+			// Обновляем описание и фотографии элемента бокса
+			await pool.query('UPDATE "boxItem" SET description = $1 WHERE id = $2', [
+				description,
+				productId,
+			])
+
+			if (photos.length > 0) {
+				await updatePhotos('boxItemPhotos', 'id_boxItem', productId, photos)
+			}
 		} else {
 			return res.status(400).json({ error: 'Invalid product type' })
 		}
@@ -406,16 +437,12 @@ const editProduct = async (req, res) => {
 
 // Вспомогательная функция для обновления фотографий
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
-	console.log('Updating photos:', { photoTable, foreignKey, id, newPhotos })
-
 	// Получаем старые фотографии из базы данных
 	const oldPhotosResult = await pool.query(
 		`SELECT photo_name FROM "${photoTable}" WHERE ${foreignKey} = $1`,
 		[id]
 	)
 	const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name)
-
-	console.log('Old photos:', oldPhotos)
 
 	// Удаляем только те старые фотографии, которые были заменены
 	if (newPhotos && newPhotos.length > 0) {
@@ -459,8 +486,6 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 		)
 		await Promise.all(photoQueries)
 	}
-
-	console.log('Photos updated successfully')
 }
 
 const deleteOneProduct = async (req, res) => {

@@ -396,7 +396,6 @@ const editProduct = async (req, res) => {
 				'UPDATE "boxItem" SET "description" = $1 WHERE "id" = $2',
 				[description, productId]
 			)
-
 			if (photos.length > 0) {
 				await updatePhotos('boxItemPhotos', 'id_boxItem', productId, photos)
 			}

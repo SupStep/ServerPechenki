@@ -435,18 +435,14 @@ const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 				await fs.unlink(photoPath) // Удаление файла
 				console.log(`File ${photo} deleted successfully`)
 			} catch (err) {
-				if (err.code === 'ENOENT') {
-					console.warn(`File ${photo} not found, skipping deletion`)
-				} else {
-					console.error(`Error deleting file ${photo}:`, err)
-				}
+				console.error(`Error deleting file ${photo}:`, err)
 			}
 		}
 
 		// Удаляем записи старых фотографий только для тех, которые были заменены
 		if (photosToDelete.length > 0) {
 			await pool.query(
-				`DELETE FROM "${photoTable}" WHERE ${foreignKey} = $1 AND "photo_name" = ANY($2::text[])`,
+				`DELETE FROM "${photoTable}" WHERE "${foreignKey}" = $1 AND "photo_name" = ANY($2::text[])`,
 				[id, photosToDelete]
 			)
 		}

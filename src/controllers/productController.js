@@ -340,8 +340,7 @@ const createNewProduct = async (req, res) => {
 
 const editProduct = async (req, res) => {
 	const { productId } = req.params
-	const { type, name, description, composition, price, structure, items } =
-		req.body
+	const { type, name, description, composition, price, structure } = req.body
 
 	// Фотографии самого продукта/бокса
 	const photos = req.files
@@ -386,29 +385,6 @@ const editProduct = async (req, res) => {
 			if (photos.length > 0) {
 				await updatePhotos('boxesPhotos', 'id_box', productId, photos)
 			}
-
-			// Обновляем элементы бокса, если они переданы
-			if (items && items.length > 0) {
-				for (const item of items) {
-					const { id, description } = item
-
-					// Обновляем описание элемента бокса
-					await pool.query(
-						'UPDATE "boxItem" SET description = $1 WHERE id = $2 AND id_box = $3',
-						[description, id, productId]
-					)
-
-					// Обновляем фотографии элемента бокса
-					if (itemPhotos[id] && itemPhotos[id].length > 0) {
-						await updatePhotos(
-							'boxItemPhotos',
-							'id_boxItem',
-							id,
-							itemPhotos[id]
-						)
-					}
-				}
-			}
 		} else if (type === 'boxItem') {
 			// Обновляем элемент бокса
 			if (!productId) {
@@ -439,7 +415,7 @@ const editProduct = async (req, res) => {
 const updatePhotos = async (photoTable, foreignKey, id, newPhotos) => {
 	// Получаем старые фотографии из базы данных
 	const oldPhotosResult = await pool.query(
-		`SELECT photo_name FROM "${photoTable}" WHERE ${foreignKey} = $1`,
+		`SELECT "photo_name" FROM "${photoTable}" WHERE "${foreignKey}" = $1`,
 		[id]
 	)
 	const oldPhotos = oldPhotosResult.rows.map(row => row.photo_name)
